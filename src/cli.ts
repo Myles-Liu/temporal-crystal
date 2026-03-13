@@ -18,6 +18,7 @@ import { MemoryStore } from "./store.js";
 import { Compressor } from "./compressor.js";
 import { RecallEngine } from "./recall.js";
 import { createProvider, type LLMConfig } from "./llm.js";
+import { DreamEngine } from "./dream.js";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -164,43 +165,45 @@ program
 program
   .command("dream")
   .option("-p, --path <path>", "Memory store path")
-  .description("Run a dream cycle")
-  .action((opts: { path?: string }) => {
+  .option("--llm", "Use LLM for creative associations")
+  .description("Run a dream cycle — discover hidden patterns")
+  .action(async (opts: { path?: string; llm?: boolean }) => {
     const store = loadStore(opts.path);
-    const allMemories = [
-      ...store.listLayer(MemoryLayer.RAW),
-      ...store.listLayer(MemoryLayer.COMPRESSED),
-      ...store.listLayer(MemoryLayer.ABSTRACT),
-    ];
+    const total = store.listLayer(MemoryLayer.RAW).length
+      + store.listLayer(MemoryLayer.COMPRESSED).length
+      + store.listLayer(MemoryLayer.ABSTRACT).length;
 
-    if (allMemories.length < 3) {
+    if (total < 3) {
       console.log(chalk.dim("Not enough memories to dream. Add more first."));
       return;
     }
 
-    const sampleSize = Math.min(store.config.dreamSampleSize, allMemories.length);
-    const shuffled = [...allMemories].sort(() => Math.random() - 0.5);
-    const sample = shuffled.slice(0, sampleSize);
+    const llm = opts.llm ? createProvider() : undefined;
+    const engine = new DreamEngine(store, llm);
+    const result = await engine.dream();
 
-    console.log(chalk.blue("\n🌙 Dream Cycle — Sampled Memories\n"));
-    for (const m of sample) {
-      console.log(chalk.dim(`  [${m.layer}] `) + m.content.slice(0, 60));
-    }
+    console.log(chalk.blue("\n🌙 Dream Cycle\n"));
+    console.log(chalk.dim(`  Sampled ${result.sampledCount} memories\n`));
 
-    const tagFreq = new Map<string, number>();
-    for (const m of sample) {
-      for (const t of m.tags) tagFreq.set(t, (tagFreq.get(t) || 0) + 1);
-    }
-
-    if (tagFreq.size > 0) {
-      console.log(chalk.magenta("\n💡 Detected themes:"));
-      const sorted = [...tagFreq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
-      for (const [tag, count] of sorted) {
-        console.log(`   ${tag}: appeared ${count} times`);
+    if (result.themes.length > 0) {
+      console.log(chalk.magenta("  💡 Themes:"));
+      for (const t of result.themes) {
+        console.log(`     ${t.tag}: ${t.count} occurrences`);
       }
     }
 
-    console.log(chalk.dim("\nNote: Full dream processing requires LLM integration (v0.4)\n"));
+    if (result.connections.length > 0) {
+      console.log(chalk.cyan("\n  🔗 Connections (LLM):"));
+      for (const c of result.connections) {
+        console.log(`     ${c}`);
+      }
+    }
+
+    if (result.crystalsFormed.length > 0) {
+      console.log(chalk.yellow(`\n  💎 ${result.crystalsFormed.length} new crystal(s) formed!`));
+    }
+
+    console.log();
   });
 
 program

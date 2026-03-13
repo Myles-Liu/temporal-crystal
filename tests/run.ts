@@ -235,3 +235,32 @@ test("date range filter", async () => {
   assert.equal(result.memories.length, 1);
   assert.ok(result.memories[0].content.includes("Recent"));
 });
+
+// --- Dream tests ---
+
+import { DreamEngine } from "../src/dream.js";
+
+console.log("\n📦 Dream\n");
+
+test("dream with enough memories", async () => {
+  const store = tmpStore();
+  store.add(createMemory("Memory A", { tags: ["work"] }));
+  store.add(createMemory("Memory B", { tags: ["work"] }));
+  store.add(createMemory("Memory C", { tags: ["personal"] }));
+  store.add(createMemory("Memory D", { tags: ["work", "meeting"] }));
+
+  const engine = new DreamEngine(store);
+  const result = await engine.dream();
+  assert.ok(result.sampledCount >= 3);
+  assert.ok(result.themes.length > 0);
+  assert.equal(result.themes[0].tag, "work"); // most frequent
+});
+
+test("dream with too few memories", async () => {
+  const store = tmpStore();
+  store.add(createMemory("Only one"));
+
+  const engine = new DreamEngine(store);
+  const result = await engine.dream();
+  assert.ok(result.sampledCount <= 1);
+});

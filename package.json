@@ -1,6 +1,6 @@
 {
   "name": "temporal-crystal",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Living memory for AI agents — memories that evolve, compress, and crystallize over time",
   "type": "module",
   "main": "dist/index.js",
@@ -11,7 +11,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "vitest run",
+    "test": "tsx tests/run.ts",
+    "test:e2e": "tsx tests/e2e.ts",
     "test:watch": "vitest",
     "lint": "eslint src",
     "tc": "tsx src/cli.ts"

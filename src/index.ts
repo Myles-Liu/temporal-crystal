@@ -35,3 +35,4 @@ export {
   PROMPTS,
 } from "./llm.js";
 export { RecallEngine, type RecallOptions, type RecallResult } from "./recall.js";
+export { DreamEngine, type DreamResult } from "./dream.js";
