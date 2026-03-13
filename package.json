@@ -24,7 +24,7 @@
     "temporal",
     "compression"
   ],
-  "author": "Myles Liu <liubaochang@meituan.com>",
+  "author": "Myles Liu <boyce51532853@gmail.com>",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^22.19.15",
