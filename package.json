@@ -1,0 +1,50 @@
+{
+  "name": "temporal-crystal",
+  "version": "0.1.0",
+  "description": "Living memory for AI agents — memories that evolve, compress, and crystallize over time",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "tc": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src",
+    "tc": "tsx src/cli.ts"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "memory",
+    "llm",
+    "temporal",
+    "compression"
+  ],
+  "author": "Myles Liu <liubaochang@meituan.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.19.15",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "chalk": "^5.4.0",
+    "commander": "^13.0.0",
+    "zod": "^3.24.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/myles-liu/temporal-crystal"
+  }
+}

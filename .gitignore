@@ -1,0 +1,6 @@
+node_modules/
+dist/
+tc-memory/
+*.tsbuildinfo
+.DS_Store
+coverage/
