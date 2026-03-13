@@ -118,13 +118,21 @@ export class MemoryStore {
     const dir = join(this.path, layer);
     if (!existsSync(dir)) return [];
     const memories: MemoryData[] = [];
+    let indexChanged = false;
     for (const file of readdirSync(dir).filter((f) => f.endsWith(".json")).sort()) {
       try {
-        memories.push(MemorySchema.parse(JSON.parse(readFileSync(join(dir, file), "utf-8"))));
+        const mem = MemorySchema.parse(JSON.parse(readFileSync(join(dir, file), "utf-8")));
+        memories.push(mem);
+        // Sync index if file exists but not in index
+        if (!this.index[mem.id]) {
+          this.index[mem.id] = layer;
+          indexChanged = true;
+        }
       } catch {
         continue;
       }
     }
+    if (indexChanged) this.saveIndex();
     return memories;
   }
 
