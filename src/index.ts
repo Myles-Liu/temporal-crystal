@@ -25,3 +25,13 @@ export {
 
 export { MemoryStore } from "./store.js";
 export { Compressor, type CompressionResult } from "./compressor.js";
+export {
+  type LLMProvider,
+  type LLMConfig,
+  type LLMOptions,
+  OpenAIProvider,
+  NoopProvider,
+  createProvider,
+  PROMPTS,
+} from "./llm.js";
+export { RecallEngine, type RecallOptions, type RecallResult } from "./recall.js";

@@ -16,6 +16,8 @@ import chalk from "chalk";
 import { createMemory, createCrystal, MemoryLayer, defaultConfig, type Config } from "./models.js";
 import { MemoryStore } from "./store.js";
 import { Compressor } from "./compressor.js";
+import { RecallEngine } from "./recall.js";
+import { createProvider, type LLMConfig } from "./llm.js";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -77,10 +79,12 @@ program
   .option("--dry-run", "Show what would be compressed")
   .option("-p, --path <path>", "Memory store path")
   .description("Compress memories that are due for promotion")
-  .action((opts: { dryRun?: boolean; path?: string }) => {
+  .option("--llm", "Use LLM for intelligent compression")
+  .action(async (opts: { dryRun?: boolean; path?: string; llm?: boolean }) => {
     const store = loadStore(opts.path);
-    const compressor = new Compressor(store);
-    const results = compressor.compressDue(opts.dryRun || false);
+    const llm = opts.llm ? createProvider() : undefined;
+    const compressor = new Compressor(store, store.config, llm);
+    const results = await compressor.compressDue(opts.dryRun || false);
 
     if (results.length === 0) {
       console.log(chalk.dim("Nothing to compress — all memories are fresh."));
@@ -197,6 +201,62 @@ program
     }
 
     console.log(chalk.dim("\nNote: Full dream processing requires LLM integration (v0.4)\n"));
+  });
+
+program
+  .command("recall")
+  .argument("<query>", "Search query")
+  .option("-t, --tags <tags>", "Filter by tags (comma-separated)")
+  .option("-l, --layer <layer>", "Filter by layer")
+  .option("-n, --limit <n>", "Max results", "5")
+  .option("--from <date>", "From date (YYYY-MM-DD)")
+  .option("--to <date>", "To date (YYYY-MM-DD)")
+  .option("--llm", "Use LLM for semantic search")
+  .option("-p, --path <path>", "Memory store path")
+  .description("Search and recall memories")
+  .action(async (query: string, opts: any) => {
+    const store = loadStore(opts.path);
+    const llm = opts.llm ? createProvider() : undefined;
+    const engine = new RecallEngine(store, llm);
+
+    const result = await engine.search({
+      query,
+      tags: opts.tags?.split(",").map((t: string) => t.trim()),
+      layer: opts.layer as MemoryLayer | undefined,
+      fromDate: opts.from,
+      toDate: opts.to,
+      limit: parseInt(opts.limit),
+      useLLM: opts.llm,
+    });
+
+    console.log(chalk.bold(`\n🔍 Recall: "${query}"\n`));
+    console.log(chalk.dim(`  Searched ${result.totalSearched} memories\n`));
+
+    if (result.memories.length === 0 && result.crystals.length === 0) {
+      console.log(chalk.dim("  No matching memories found.\n"));
+      return;
+    }
+
+    if (result.memories.length > 0) {
+      console.log(chalk.bold("  Memories:"));
+      for (const mem of result.memories) {
+        const age = `${Math.floor((Date.now() - new Date(mem.createdAt).getTime()) / 86400000)}d`;
+        const layerIcon: Record<string, string> = { raw: "🟢", compressed: "🔵", abstract: "🟣", crystal: "💎" };
+        const icon = layerIcon[mem.layer] || "  ";
+        console.log(`  ${icon} [${mem.id}] ${age} ago  imp:${mem.importance.toFixed(1)}`);
+        console.log(`     ${mem.content.slice(0, 120)}`);
+        if (mem.tags.length) console.log(chalk.cyan(`     tags: ${mem.tags.join(", ")}`));
+        console.log();
+      }
+    }
+
+    if (result.crystals.length > 0) {
+      console.log(chalk.magenta.bold("  💎 Crystals:"));
+      for (const c of result.crystals) {
+        console.log(chalk.magenta(`  💎 [${c.id}] ${c.insight.slice(0, 120)}`));
+      }
+      console.log();
+    }
   });
 
 program.parse();

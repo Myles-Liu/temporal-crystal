@@ -21,15 +21,22 @@ import { Compressor } from "../src/compressor.js";
 
 let passed = 0;
 let failed = 0;
+const tests: Array<{ name: string; fn: () => void | Promise<void> }> = [];
 
-function test(name: string, fn: () => void) {
-  try {
-    fn();
-    console.log(`  ✅ ${name}`);
-    passed++;
-  } catch (e: any) {
-    console.log(`  ❌ ${name}: ${e.message}`);
-    failed++;
+function test(name: string, fn: () => void | Promise<void>) {
+  tests.push({ name, fn });
+}
+
+async function runTests() {
+  for (const { name, fn } of tests) {
+    try {
+      await fn();
+      console.log(`  ✅ ${name}`);
+      passed++;
+    } catch (e: any) {
+      console.log(`  ❌ ${name}: ${e.message}`);
+      failed++;
+    }
   }
 }
 
@@ -136,14 +143,15 @@ test("add and list crystals", () => {
 
 console.log("\n📦 Compressor\n");
 
-test("nothing to compress for fresh memories", () => {
+test("nothing to compress for fresh memories", async () => {
   const store = tmpStore();
   store.add(createMemory("Fresh"));
   const compressor = new Compressor(store);
-  assert.equal(compressor.compressDue().length, 0);
+  const results = await compressor.compressDue();
+  assert.equal(results.length, 0);
 });
 
-test("compresses old memories", () => {
+test("compresses old memories", async () => {
   const store = tmpStore();
   for (let i = 0; i < 3; i++) {
     store.add(createMemory(`Old ${i}`, {
@@ -151,13 +159,13 @@ test("compresses old memories", () => {
     }));
   }
   const compressor = new Compressor(store);
-  const results = compressor.compressDue();
+  const results = await compressor.compressDue();
   assert.ok(results.length >= 1);
   assert.equal(results[0].action, "compress");
   assert.equal(results[0].toLayer, "compressed");
 });
 
-test("dry run does not modify store", () => {
+test("dry run does not modify store", async () => {
   const store = tmpStore();
   for (let i = 0; i < 3; i++) {
     store.add(createMemory(`Old ${i}`, {
@@ -166,13 +174,64 @@ test("dry run does not modify store", () => {
   }
   const before = JSON.stringify(store.stats());
   const compressor = new Compressor(store);
-  compressor.compressDue(true);
+  await compressor.compressDue(true);
   const after = JSON.stringify(store.stats());
   assert.equal(before, after);
 });
 
-// --- Summary ---
+// --- Run all ---
 
-console.log(`\n${"─".repeat(40)}`);
-console.log(`✅ ${passed} passed  ❌ ${failed} failed  📊 ${passed + failed} total\n`);
-process.exit(failed > 0 ? 1 : 0);
+async function main() {
+  await runTests();
+  console.log(`\n${"─".repeat(40)}`);
+  console.log(`✅ ${passed} passed  ❌ ${failed} failed  📊 ${passed + failed} total\n`);
+  process.exit(failed > 0 ? 1 : 0);
+}
+
+main();
+
+// --- Recall tests ---
+
+import { RecallEngine } from "../src/recall.js";
+
+console.log("\n📦 Recall\n");
+
+test("keyword search", async () => {
+  const store = tmpStore();
+  store.add(createMemory("Deployed webpack to production", { tags: ["deploy"] }));
+  store.add(createMemory("Met with Zhang San about project", { tags: ["meeting"] }));
+  store.add(createMemory("Fixed CSS bug in header", { tags: ["bugfix"] }));
+
+  const engine = new RecallEngine(store);
+  const result = await engine.search({ query: "webpack" });
+  assert.ok(result.memories.length >= 1);
+  assert.ok(result.memories[0].content.includes("webpack"));
+});
+
+test("tag filter", async () => {
+  const store = tmpStore();
+  store.add(createMemory("Deploy v1", { tags: ["deploy"] }));
+  store.add(createMemory("Deploy v2", { tags: ["deploy"] }));
+  store.add(createMemory("Bug fix", { tags: ["bugfix"] }));
+
+  const engine = new RecallEngine(store);
+  const result = await engine.search({ tags: ["deploy"] });
+  assert.equal(result.memories.length, 2);
+});
+
+test("date range filter", async () => {
+  const store = tmpStore();
+  const old = createMemory("Old memory", {
+    createdAt: new Date("2025-01-01").toISOString(),
+  });
+  const recent = createMemory("Recent memory", {
+    createdAt: new Date("2026-03-01").toISOString(),
+  });
+  store.add(old);
+  store.add(recent);
+
+  const engine = new RecallEngine(store);
+  const result = await engine.search({ fromDate: "2026-01-01" });
+  assert.equal(result.memories.length, 1);
+  assert.ok(result.memories[0].content.includes("Recent"));
+});

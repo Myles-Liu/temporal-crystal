@@ -16,6 +16,7 @@ import {
   createCrystal,
 } from "./models.js";
 import { MemoryStore } from "./store.js";
+import { type LLMProvider, PROMPTS } from "./llm.js";
 
 export interface CompressionResult {
   action: "compress" | "crystallize";
@@ -27,12 +28,17 @@ export interface CompressionResult {
 }
 
 export class Compressor {
+  private llm?: LLMProvider;
+
   constructor(
     private store: MemoryStore,
-    private config: Config = store.config
-  ) {}
+    private config: Config = store.config,
+    llm?: LLMProvider
+  ) {
+    this.llm = llm;
+  }
 
-  compressDue(dryRun = false): CompressionResult[] {
+  async compressDue(dryRun = false): Promise<CompressionResult[]> {
     const due = this.store.listDueForCompression();
     const results: CompressionResult[] = [];
 
@@ -47,18 +53,18 @@ export class Compressor {
 
     for (const [targetLayer, memories] of groups) {
       if (targetLayer === MemoryLayer.COMPRESSED) {
-        results.push(...this.compressToWeekly(memories, dryRun));
+        results.push(...await this.compressToWeekly(memories, dryRun));
       } else if (targetLayer === MemoryLayer.ABSTRACT) {
-        results.push(...this.compressToMonthly(memories, dryRun));
+        results.push(...await this.compressToMonthly(memories, dryRun));
       } else if (targetLayer === MemoryLayer.CRYSTAL) {
-        results.push(...this.compressToCrystal(memories, dryRun));
+        results.push(...await this.compressToCrystal(memories, dryRun));
       }
     }
 
     return results;
   }
 
-  private compressToWeekly(memories: MemoryData[], dryRun: boolean): CompressionResult[] {
+  private async compressToWeekly(memories: MemoryData[], dryRun: boolean): Promise<CompressionResult[]> {
     const results: CompressionResult[] = [];
 
     // Group by week
@@ -73,7 +79,7 @@ export class Compressor {
     }
 
     for (const [week, mems] of weeks) {
-      const summary = this.simpleSummarize(mems, "weekly");
+      const summary = await this.summarize(mems, "weekly");
       const result: CompressionResult = {
         action: "compress",
         fromLayer: "raw",
@@ -112,7 +118,7 @@ export class Compressor {
     return results;
   }
 
-  private compressToMonthly(memories: MemoryData[], dryRun: boolean): CompressionResult[] {
+  private async compressToMonthly(memories: MemoryData[], dryRun: boolean): Promise<CompressionResult[]> {
     const results: CompressionResult[] = [];
     const months = new Map<string, MemoryData[]>();
 
@@ -123,7 +129,7 @@ export class Compressor {
     }
 
     for (const [month, mems] of months) {
-      const summary = this.simpleSummarize(mems, "monthly");
+      const summary = await this.summarize(mems, "monthly");
       const result: CompressionResult = {
         action: "compress",
         fromLayer: "compressed",
@@ -142,7 +148,7 @@ export class Compressor {
     return results;
   }
 
-  private compressToCrystal(memories: MemoryData[], dryRun: boolean): CompressionResult[] {
+  private async compressToCrystal(memories: MemoryData[], dryRun: boolean): Promise<CompressionResult[]> {
     const results: CompressionResult[] = [];
 
     if (memories.length < this.config.crystalThreshold) return results;
@@ -159,7 +165,15 @@ export class Compressor {
       if (count < this.config.crystalThreshold) continue;
 
       const related = memories.filter((m) => m.tags.includes(tag));
-      const insight = `Pattern [${tag}]: Recurring across ${related.length} memories`;
+      let insight = `Pattern [${tag}]: Recurring across ${related.length} memories`;
+
+      // Use LLM for richer insight if available
+      if (this.llm) {
+        try {
+          const memText = related.map((m) => `- ${m.content}`).join("\n");
+          insight = await this.llm.complete(PROMPTS.crystallize(memText, tag));
+        } catch { /* fallback to rule-based */ }
+      }
 
       const result: CompressionResult = {
         action: "crystallize",
@@ -182,6 +196,24 @@ export class Compressor {
     }
 
     return results;
+  }
+
+  // --- Summarization with LLM fallback ---
+
+  private async summarize(memories: MemoryData[], level: string): Promise<string> {
+    if (this.llm) {
+      try {
+        const memText = memories.map((m) => `- ${m.content}`).join("\n");
+        if (level === "weekly") {
+          return await this.llm.complete(PROMPTS.compressWeekly(memText));
+        } else if (level === "monthly") {
+          return await this.llm.complete(PROMPTS.compressMonthly(memText));
+        }
+      } catch {
+        // Fall through to simple
+      }
+    }
+    return this.simpleSummarize(memories, level);
   }
 
   // --- Simple compression (no LLM) ---
