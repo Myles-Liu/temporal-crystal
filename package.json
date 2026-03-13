@@ -1,6 +1,6 @@
 {
   "name": "temporal-crystal",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Living memory for AI agents — memories that evolve, compress, and crystallize over time",
   "type": "module",
   "main": "dist/index.js",
