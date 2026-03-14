@@ -264,3 +264,109 @@ test("dream with too few memories", async () => {
   const result = await engine.dream();
   assert.ok(result.sampledCount <= 1);
 });
+
+// --- Visualization tests ---
+
+import { generateHTML } from "../src/viz.js";
+
+console.log("\n📦 Visualization\n");
+
+test("generates HTML for empty store", () => {
+  const store = tmpStore();
+  const html = generateHTML(store);
+  assert.ok(html.includes("Temporal Crystal Memory"));
+  assert.ok(html.includes("Raw Layer"));
+  assert.ok(html.includes("Compressed"));
+  assert.ok(html.includes("Abstract"));
+  assert.ok(html.includes("Crystal"));
+  assert.ok(html.includes("<!DOCTYPE html>"));
+  assert.ok(html.includes("</html>"));
+});
+
+test("generates HTML with custom title", () => {
+  const store = tmpStore();
+  const html = generateHTML(store, {
+    title: "Custom Title",
+    description: "Custom Description",
+  });
+  assert.ok(html.includes("Custom Title"));
+  assert.ok(html.includes("Custom Description"));
+});
+
+test("includes memory layers with correct colors", () => {
+  const store = tmpStore();
+  store.add(createMemory("Raw memory", { layer: MemoryLayer.RAW }));
+  store.add(createMemory("Compressed memory", { layer: MemoryLayer.COMPRESSED }));
+
+  const html = generateHTML(store);
+  assert.ok(html.includes("Raw Layer"));
+  assert.ok(html.includes("Compressed Layer"));
+  assert.ok(html.includes("#1976D2")); // Raw color
+  assert.ok(html.includes("#388E3C")); // Compressed color
+});
+
+test("escapes HTML in content", () => {
+  const store = tmpStore();
+  store.add(createMemory("Content with <script>alert('xss')</script>"));
+
+  const html = generateHTML(store);
+  assert.ok(html.includes("&lt;script&gt;"));
+  assert.ok(!html.includes("<script>alert('xss')</script>"));
+});
+
+test("displays memory properties", () => {
+  const store = tmpStore();
+  store.add(createMemory("Test memory", {
+    importance: 0.8,
+    tags: ["important", "test"],
+  }));
+
+  const html = generateHTML(store);
+  assert.ok(html.includes("Importance"));
+  assert.ok(html.includes("80%"));
+  assert.ok(html.includes("important"));
+  assert.ok(html.includes("test"));
+});
+
+test("displays crystals", () => {
+  const store = tmpStore();
+  store.addCrystal(createCrystal("Important pattern", {
+    confidence: 0.95,
+    category: "behavior",
+  }));
+
+  const html = generateHTML(store);
+  assert.ok(html.includes("💎 Crystals"));
+  assert.ok(html.includes("Important pattern"));
+  assert.ok(html.includes("Confidence"));
+  assert.ok(html.includes("95%"));
+});
+
+test("includes inline CSS without CDN", () => {
+  const store = tmpStore();
+  const html = generateHTML(store);
+
+  assert.ok(html.includes("<style>"));
+  assert.ok(html.includes("</style>"));
+  assert.ok(!html.includes("cdn."));
+  assert.ok(!html.includes("https://"));
+});
+
+test("includes inline JavaScript", () => {
+  const store = tmpStore();
+  const html = generateHTML(store);
+
+  assert.ok(html.includes("<script>"));
+  assert.ok(html.includes("DOMContentLoaded"));
+});
+
+test("statistics bar displays correct counts", () => {
+  const store = tmpStore();
+  store.add(createMemory("M1", { layer: MemoryLayer.RAW }));
+  store.add(createMemory("M2", { layer: MemoryLayer.RAW }));
+  store.add(createMemory("M3", { layer: MemoryLayer.COMPRESSED }));
+
+  const html = generateHTML(store);
+  assert.ok(html.includes("Total Memories"));
+  assert.ok(html.includes("Raw Layer"));
+});
