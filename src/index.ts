@@ -36,3 +36,4 @@ export {
 } from "./llm.js";
 export { RecallEngine, type RecallOptions, type RecallResult } from "./recall.js";
 export { DreamEngine, type DreamResult } from "./dream.js";
+export { generateHTML, type GenerateHTMLOptions } from "./viz.js";

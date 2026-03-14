@@ -19,6 +19,7 @@ import { Compressor } from "./compressor.js";
 import { RecallEngine } from "./recall.js";
 import { createProvider, type LLMConfig } from "./llm.js";
 import { DreamEngine } from "./dream.js";
+import { generateHTML } from "./viz.js";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -260,6 +261,26 @@ program
       }
       console.log();
     }
+  });
+
+program
+  .command("viz")
+  .option("-o, --output <path>", "Output file path", "./temporal-crystal-viz.html")
+  .option("-p, --path <path>", "Memory store path")
+  .option("--title <title>", "HTML page title", "Temporal Crystal Memory")
+  .option("--description <desc>", "HTML page description", "An interactive timeline of memories across all layers")
+  .description("Generate interactive HTML visualization of all memories")
+  .action((opts: { output: string; path?: string; title?: string; description?: string }) => {
+    const store = loadStore(opts.path);
+    const html = generateHTML(store, {
+      title: opts.title,
+      description: opts.description,
+    });
+    writeFileSync(opts.output, html);
+    console.log(chalk.green(`✓ Generated visualization at ${opts.output}`));
+    const stats = store.stats();
+    const total = stats.raw + stats.compressed + stats.abstract + stats.crystal;
+    console.log(chalk.dim(`  Total memories: ${total} | Crystals: ${stats.crystals}`));
   });
 
 program.parse();
